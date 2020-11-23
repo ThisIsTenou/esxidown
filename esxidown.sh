@@ -74,18 +74,15 @@ done
 echo "Guest VM shutdown complete..."
 
 # shutdown the ESXi host
-echo "Shutting down ESXi host after 10 seconds..."
+echo "Shutting down ESXi host after 15 seconds..."
 if [ $TEST -eq 0 ]; then
+    esxcli system maintenanceMode set -e true -t 0
+    sleep 5
     esxcli system shutdown poweroff -d 10 -r "Automated ESXi host shutdown - esxidown.sh"
 fi
 
 
 
-# enter maintenance mode immediately (update: moved this to last b/c maint mode can trigger stuff i don't want earlier)
-echo "Entering maintenance mode..."
-if [ $TEST -eq 0 ]; then
-    esxcli system maintenanceMode set -e true -t 0 &
-fi
 
 # exit the session
 
