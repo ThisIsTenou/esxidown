@@ -49,6 +49,7 @@ ssh -i ./.ssh/my-key.pem root@esxi.lab.local '/bin/sh /vmfs/volumes/yourdatastor
 ```
 
 **Non-Interactive expect-script using passwords:**
+Has to be called like this: `/usr/bin/expect script.exp hostname.lab.local pa$sw0rd`
 ```
 #!/usr/bin/expect
 set host [lindex $argv 0]
