@@ -2,7 +2,7 @@
 # ESXi 5.1+ host automated shutdown script (https://github.com/sophware/esxidown)
 
 # Specify log file path
-LOG_FILE=/vmfs/volumes/$(hostname | cut -d '.' -f1)_datastore-local-1/000-scripts/logs/esxidown.log
+LOG_FILE=/vmfs/volumes/yourdatastore/esxidown.log
 exec 2>>${LOG_FILE}
 message () {
 	echo "$(date '+%D %H:%M:%S') [esxidown] $1">>${LOG_FILE}
