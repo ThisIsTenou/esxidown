@@ -1,28 +1,69 @@
-ESXi Auto Shutdown Script v1.0b
-Tested on ESXi 5.1 through 5.5 (free)
+ESXi Auto Shutdown Script
 -------------------------
+Tested on ESXi 7.0.1 (Enterprise Plus).
 
-This script can be used to help shut down virtual machines, for example, in the case of a power outage.
-All virtual machines will be shutdown in parallel, this way the time needed for the full shutdown process is way faster.
+Based on the work of [Jon Saltzman](https://github.com/sixdimensionalarray/esxidown), [Andriy Babak](https://github.com/ababak/esxidown) and [Sophware](https://github.com/sophware/esxidown).
 
-Deploy the two scripts on an ESXi 5.1 (or greater) attached datastore.  The scripts are known to work up to ESXi 7.0.1.  Make sure they are executable (chmod +x) by the user who will be running the script.
 
-By default, the script tries to shut down all guest VMs automatically, and waits 20 times for a duration of 10 seconds each time for each VM to shut down.  These settings are customizable in the script.
+**How does this script differ from the numerous, [other forks](https://github.com/sixdimensionalarray/esxidown/network/members)?**
+-------------------------
+* VM shutdown commands are run in parallel, greatly reducing the total time needed until the host can shut down.
+* Command outputs are written to a log file
+* Script- and log-locations are hardcoded, so they work best with my own environment. You need to change them manually.
 
-If a guest VM doesn't shut down cleanly, it is forcefully powered off.  You could change this, for example, and make it suspend instead of a forceful shutdown (vmsvc/power.suspend) - it's up to you.
+**What are the different files for?**
+-------------------------
+The only interesting files are the two scripts, "esxidown.sh" and "async.sh".
 
-The script can be run via SSH, and the virtual machines you specify (as well as the virtual host) will be shutdown using best effort.
+**esxidown.sh** is the script doing all the magic. When called, it will put your ESXi-Host into maintenance mode, send a shutdown command to all running VMs, wait for them to shutdown and then proceed to shutdown the phyiscal host, leaving maintenance mode again in the meantime.
+The "leaving maintenance mode"-part can technically fail, but at least in my experience, it's always been working fine and allows the VMs to autostart after the host has been brought up again.
 
-You may consider running the script asynchronously using the async.sh script.  This will start an unstoppable shutdown and return control back to the shell.
+**async.sh** is a tiny oneliner, which can call the esxidown.sh-script, executing it in the background instead of the current shell. This means that you can leave the (ssh-)session, without having to wait for the script to finish first. Using this is highly recommended, especially since there's nothing to see when running esxidown.sh manually anyways, all output is being sent to the logfile, not the console.
 
-This is useful if, for example, you are triggering the shutdown from another server using an SSH connection, and you do not want to rely on the connection staying open while the shutdown process completes.
+**How do I use it?**
+-------------------------
+1. Copy both "esxidown.sh" and "async.sh" onto the **datastore** of your ESXi hosts. You can either do this through vCenter's WebUI or via SFTP/SSH.
+2. Make note of the full path of where you stored them and replace the paths in both scripts with the correct ones for your setup:
+   * **async.sh line 4**: Replace "/vmfs/volumes/yourdatastore/esxidown.sh" with the full path to your esxidown.sh-script location.
+   * **esxidown.sh line 5**: Replace "/vmfs/volumes/yourdatastore/esxidown.log" with the full path to where you want your logfile to be written to.
+3. Make both scripts executable: `chmod +x esxidown.sh async.sh`
+4. Congrats! You can now safely shutdown your ESXi host just by calling the async.sh-script.
 
-For example, if you have a Windows box that can detect the UPS shutdown signal from your UPS, and want your ESXi host to shut down using these scripts:
+**Important notes:**
+* Make sure that both paths are the full paths, starting at root level. Also make sure that all subsequent directories for the log location exist, otherwise it'll fail to be created. You do not have to create the esxidown.log-file itself, though - just the path to it.
+* **STORE THE FILES ON A DATASTORE**. Like, honestly. They gotta be on a datastore. If you just throw them into the root-directory, they will **NOT** survive a reboot. This applies to both the scripts and the logfile. A log doesn't help you if it's gone seconds after ;)
 
-You can use Putty's plink command on Windows to remotely call the script.  The script will execute asynchronously - once it starts, it cannot be stopped, and will succeed even if the SSH connection is closed - and ALL guests and the ESXi host will do their best to shut down, or power off.
 
-If you don't want to use the password in the plink command, you can also use an SSH key.  Generate one using Putty's puttygen tool in Windows (no passphrase, DSA), and install a copy of your public key in the ESXi host's authorized keys file.  The key file can be found in /etc/ssh/keys-root/authorized_keys.
+**I want to automate this to run when a power loss occurs. Is that possible?**
+-------------------------
+Certainly! In my setup, my monitoring software is calling these scripts via ssh on all hosts. Here are some command snippets you can base your automation on:
 
-Then you can use a command like this with the private key on the Windows box (with SSH access enabled on ESXi):
+**Interactive oneliner:**
+```
+ssh root@esxi.lab.local '/bin/sh /vmfs/volumes/yourdatastore/async.sh'
+```
 
-C:\plink.exe -i "c:\<private key file>.ppk" root@<your ESXi hostname/IP> "sh /vmfs/volumes/<your datastore>/async.sh /vmfs/volumes/<your datastore>/esxidown.sh"
+**Non-interactive oneliner using authentication keys:**
+```
+ssh -i ./.ssh/my-key.pem root@esxi.lab.local '/bin/sh /vmfs/volumes/yourdatastore/async.sh'
+```
+
+**Non-Interactive expect-script using passwords:**
+```
+#!/usr/bin/expect
+set host [lindex $argv 0]
+set password [lindex $argv 1]
+
+spawn ssh root@$host
+expect {
+  "Are you sure you want to continue connecting" {send "yes\r";exp_continue}
+  "Password:" {send "$password\r";exp_continue}
+}
+expect ":~]"
+send "/bin/sh /vmfs/volumes/yourdatastore/async.sh"
+send "\r"
+expect ":~]"
+send "exit\r"
+expect eof
+```
+
