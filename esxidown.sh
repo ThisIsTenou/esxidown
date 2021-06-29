@@ -1,6 +1,13 @@
 #!/bin/sh
-# ESXi 5.1 host automated shutdown script (update: i'm running this on 7.0.1)
+# ESXi 5.1+ host automated shutdown script (https://github.com/sophware/esxidown)
 
+# Specify log file path
+LOG_FILE=/vmfs/volumes/$(hostname | cut -d '.' -f1)_datastore-local-1/000-scripts/logs/esxidown.log
+exec 2>>${LOG_FILE}
+message () {
+	echo "$(date '+%D %H:%M:%S') [esxidown] $1">>${LOG_FILE}
+}
+message "Script called"
 # these are the VM IDs to shutdown in the order specified
 # use the SSH shell, run "vim-cmd vmsvc/getallvms" to get ID numbers
 # specify IDs separated by a space
@@ -28,12 +35,12 @@ validate_shutdown()
         if [ $TRY -lt $WAIT_TRYS ]; then
             # if the vm is not off, wait for it to shut down
             TRY=$((TRY + 1))
-            echo "Waiting for guest VM ID $SRVID to shutdown (attempt #$TRY)..."
+            message "Waiting for guest VM ID $SRVID to shutdown (attempt #$TRY)..."
             sleep $WAIT_TIME
             validate_shutdown
         else
             # force power off and wait a little (you could use vmsvc/power.suspend here instead)
-            echo "Unable to gracefully shutdown guest VM ID $SRVID... forcing power off."
+            message "Unable to gracefully shutdown guest VM ID $SRVID, forcing power off"
             if [ $TEST -eq 0 ]; then
                 vim-cmd vmsvc/power.off $SRVID
             fi
@@ -41,6 +48,12 @@ validate_shutdown()
         fi
     fi
 }
+
+# enter maintenance mode immediately
+message "Entering maintenance mode"
+if [ $TEST -eq 0 ]; then
+    esxcli system maintenanceMode set -e true -t 0 &
+fi
 
 #send all shutdown messages
 for SRVID in $SERVERIDS
@@ -63,18 +76,18 @@ do
     STATUS=$?
 
     if [ $STATUS -ne 0 ]; then
-        echo "Checking shutdown of guest VM ID $SRVID..."
+        message "Checking shutdown of guest VM ID $SRVID..."
         validate_shutdown
     else
-        echo "Guest VM ID $SRVID is off..."
+        message "Guest VM ID $SRVID is off"
     fi
 done
 
 # guest vm shutdown complete
-echo "Guest VM shutdown complete..."
+message "Guest VM shutdown complete"
 
 # shutdown the ESXi host
-echo "Shutting down ESXi host after 15 seconds..."
+message "Shutting down ESXi host after 15 seconds"
 if [ $TEST -eq 0 ]; then
     esxcli system maintenanceMode set -e true -t 0
     sleep 5
@@ -84,14 +97,13 @@ fi
 
 
 
-# exit the session
-
-#UPDATE: commented below b/c i want maint mode on reboot. in my setup, autostart vms aren't to start after power outage.
 # exit maintenance mode immediately before server has a chance to shutdown/power off
 # NOTE: it is possible for this to fail, leaving the server in maintenance mode on reboot!
-#echo "Exiting maintenance mode..."
-#if [ $TEST -eq 0 ]; then
-#    esxcli system maintenanceMode set -e false -t 0
-#fi
+message "Exiting maintenance mode"
+if [ $TEST -eq 0 ]; then
+    esxcli system maintenanceMode set -e false -t 0
+fi
+message "Exiting"
 
+# exit the session
 exit
