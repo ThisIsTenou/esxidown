@@ -1,6 +1,4 @@
 #!/bin/sh
 # Runs a shell command asynchronously.
 
-if [ "$1" != "" ]; then
-    nohup sh $1 > /dev/null 2>&1 &
-fi
+nohup /bin/sh /vmfs/volumes/$(hostname | cut -d '.' -f1)_datastore-local-1/000-scripts/esxidown.sh > /dev/null 2>&1 &
