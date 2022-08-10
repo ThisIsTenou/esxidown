@@ -84,8 +84,6 @@ message "Guest VM shutdown complete"
 # shutdown the ESXi host
 message "Shutting down ESXi host after 15 seconds"
 if [ $TEST -eq 0 ]; then
-    esxcli system maintenanceMode set -e true -t 0
-    sleep 5
     esxcli system shutdown poweroff -d 10 -r "Automated ESXi host shutdown // esxidown.sh"
 fi
 
