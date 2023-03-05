@@ -1,6 +1,7 @@
 ESXi Auto Shutdown Script
 -------------------------
 Tested on ESXi 7.0.1 (Enterprise Plus).
+This does NOT currently work on ESXI 8+, as described in [Issue #1](https://github.com/ThisIsTenou/esxidown/issues/1). A fix is currently being worked on.
 
 Based on the work of [Jon Saltzman](https://github.com/sixdimensionalarray/esxidown), [Andriy Babak](https://github.com/ababak/esxidown) and [Sophware](https://github.com/sophware/esxidown).
 
